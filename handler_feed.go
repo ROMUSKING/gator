@@ -16,13 +16,9 @@ func handlerAgg(s *state, cmd command) error {
 	return nil
 }
 
-func handlerAddFeed(s *state, cmd command) error {
+func handlerAddFeed(s *state, cmd command, user database.User) error {
 	if len(cmd.Args) != 2 {
 		return fmt.Errorf("usage: addfeed <name> <url>")
-	}
-	user, err := s.db.GetUser(context.Background(), s.config.CurrentUserName)
-	if err != nil {
-		return err
 	}
 	paramsFeed := database.CreateFeedParams{
 		UserID: user.ID,
@@ -33,7 +29,7 @@ func handlerAddFeed(s *state, cmd command) error {
 	if err != nil {
 		return err
 	}
-	
+
 	paramsFollow := database.CreateFeedFollowParams{
 		UserID: user.ID,
 		FeedID: feed.ID,
@@ -56,15 +52,11 @@ func handlerFeeds(s *state, cmd command) error {
 
 }
 
-func handlerFollow(s *state, cmd command) error {
+func handlerFollow(s *state, cmd command, user database.User) error {
 	if len(cmd.Args) < 1 {
 		return fmt.Errorf("expected: follow <url>")
 	}
 	feed, err := s.db.GetFeed(context.Background(), cmd.Args[0])
-	if err != nil {
-		return err
-	}
-	user, err := s.db.GetUser(context.Background(), s.config.CurrentUserName)
 	if err != nil {
 		return err
 	}
@@ -80,9 +72,29 @@ func handlerFollow(s *state, cmd command) error {
 	return nil
 }
 
-func handlerFollowing(s *state, cmd command) error {
+func handlerUnFollow(s *state, cmd command, user database.User) error {
+	if len(cmd.Args) < 1 {
+		return fmt.Errorf("expected: follow <url>")
+	}
+	feed, err := s.db.GetFeed(context.Background(), cmd.Args[0])
+	if err != nil {
+		return err
+	}
+	params := database.DeleteFeedFollowParams{
+		UserID: user.ID,
+		FeedID: feed.ID,
+	}
+	err = s.db.DeleteFeedFollow(context.Background(), params)
+	if err != nil {
+		return err
+	}
+	fmt.Println(feed.Name, "unfollowed")
+	return nil
+}
 
-	feeds, err := s.db.GetFeedFollowsForUser(context.Background(), s.config.CurrentUserName)
+func handlerFollowing(s *state, cmd command,  user database.User) error {
+
+	feeds, err := s.db.GetFeedFollowsForUser(context.Background(), user.ID)
 	if err != nil {
 		return err
 	}

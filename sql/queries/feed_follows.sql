@@ -23,9 +23,13 @@ JOIN users ON inserted_feed_follow.user_id = users.id;
 -- name: GetFeedFollowsForUser :many
 SELECT *, feeds.name AS feed_name 
 FROM feed_follows
-JOIN feeds ON feed_id = feeds.id
-JOIN users ON user_id = users.id
-WHERE users.name = $1;
+JOIN feeds ON feed_follows.feed_id = feeds.id
+WHERE feed_follows.user_id = $1;
+
+-- name: DeleteFeedFollows :exec
+DELETE FROM feed_follows;
 
 -- name: DeleteFeedFollow :exec
-DELETE FROM feed_follows;
+DELETE FROM feed_follows
+WHERE feed_follows.feed_id = $1 
+    AND feed_follows.user_id = $2;

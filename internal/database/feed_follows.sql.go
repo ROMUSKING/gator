@@ -64,19 +64,34 @@ func (q *Queries) CreateFeedFollow(ctx context.Context, arg CreateFeedFollowPara
 
 const deleteFeedFollow = `-- name: DeleteFeedFollow :exec
 DELETE FROM feed_follows
+WHERE feed_follows.feed_id = $1 
+    AND feed_follows.user_id = $2
 `
 
-func (q *Queries) DeleteFeedFollow(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, deleteFeedFollow)
+type DeleteFeedFollowParams struct {
+	FeedID uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) DeleteFeedFollow(ctx context.Context, arg DeleteFeedFollowParams) error {
+	_, err := q.db.ExecContext(ctx, deleteFeedFollow, arg.FeedID, arg.UserID)
+	return err
+}
+
+const deleteFeedFollows = `-- name: DeleteFeedFollows :exec
+DELETE FROM feed_follows
+`
+
+func (q *Queries) DeleteFeedFollows(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deleteFeedFollows)
 	return err
 }
 
 const getFeedFollowsForUser = `-- name: GetFeedFollowsForUser :many
-SELECT feed_follows.id, feed_follows.created_at, feed_follows.updated_at, feed_follows.user_id, feed_id, feeds.id, feeds.created_at, feeds.updated_at, feeds.name, url, feeds.user_id, users.id, users.created_at, users.updated_at, users.name, feeds.name AS feed_name 
+SELECT feed_follows.id, feed_follows.created_at, feed_follows.updated_at, feed_follows.user_id, feed_id, feeds.id, feeds.created_at, feeds.updated_at, name, url, feeds.user_id, feeds.name AS feed_name 
 FROM feed_follows
-JOIN feeds ON feed_id = feeds.id
-JOIN users ON user_id = users.id
-WHERE users.name = $1
+JOIN feeds ON feed_follows.feed_id = feeds.id
+WHERE feed_follows.user_id = $1
 `
 
 type GetFeedFollowsForUserRow struct {
@@ -91,15 +106,11 @@ type GetFeedFollowsForUserRow struct {
 	Name        string
 	Url         string
 	UserID_2    uuid.UUID
-	ID_3        uuid.UUID
-	CreatedAt_3 time.Time
-	UpdatedAt_3 time.Time
-	Name_2      string
 	FeedName    string
 }
 
-func (q *Queries) GetFeedFollowsForUser(ctx context.Context, name string) ([]GetFeedFollowsForUserRow, error) {
-	rows, err := q.db.QueryContext(ctx, getFeedFollowsForUser, name)
+func (q *Queries) GetFeedFollowsForUser(ctx context.Context, userID uuid.UUID) ([]GetFeedFollowsForUserRow, error) {
+	rows, err := q.db.QueryContext(ctx, getFeedFollowsForUser, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -119,10 +130,6 @@ func (q *Queries) GetFeedFollowsForUser(ctx context.Context, name string) ([]Get
 			&i.Name,
 			&i.Url,
 			&i.UserID_2,
-			&i.ID_3,
-			&i.CreatedAt_3,
-			&i.UpdatedAt_3,
-			&i.Name_2,
 			&i.FeedName,
 		); err != nil {
 			return nil, err
