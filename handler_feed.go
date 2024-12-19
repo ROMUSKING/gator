@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/romusking/gator/internal/database"
@@ -11,6 +12,7 @@ import (
 func handlerAgg(s *state, cmd command) error {
 	if len(cmd.Args) != 1 {
 		fmt.Println("usage: agg <time_between_reqs>, minimum 1m")
+		return fmt.Errorf("usage: agg <time_between_reqs>, minimum 1m")
 	}
 	time_between_reqs, err := time.ParseDuration(cmd.Args[0])
 	if err != nil {
@@ -123,8 +125,28 @@ func scrapeFeeds(s *state) error {
 	if err != nil {
 		return err
 	}
+	const timeFormat = "Mon, 02 Jan 2006 15:04:05 -0700"
+
 	for _, item := range items.Channel.Item {
-		fmt.Println(item.Title, item.Link)
+		published, err := time.Parse(timeFormat, item.PubDate)
+		if err != nil {
+			log.Fatalf("item %s date in wrong format: %v", item.Title, err)
+		}
+		params := database.CreatePostParams{
+			Title:       item.Title,
+			Description: item.Description,
+			Url:         item.Link,
+			FeedID:      feed.ID,
+			PublishedAt: published.UTC(),
+		}
+		err = s.db.CreatePost(context.Background(), params)
+		if err != nil {
+			if err.Error() == `pq: duplicate key value violates unique constraint "posts_url_key"` {
+				continue
+			} else {
+				log.Println(err)
+			}
+		}
 	}
 	return nil
 }
