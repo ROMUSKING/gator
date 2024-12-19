@@ -22,7 +22,7 @@ VALUES (
     $2,
     $3 
 )
-RETURNING id, created_at, updated_at, name, url, user_id
+RETURNING id, created_at, updated_at, name, url, user_id, last_fetched_at
 `
 
 type CreateFeedParams struct {
@@ -41,6 +41,7 @@ func (q *Queries) CreateFeed(ctx context.Context, arg CreateFeedParams) (Feed, e
 		&i.Name,
 		&i.Url,
 		&i.UserID,
+		&i.LastFetchedAt,
 	)
 	return i, err
 }
@@ -54,8 +55,32 @@ func (q *Queries) DeleteFeeds(ctx context.Context) error {
 	return err
 }
 
+const getAndMarkFeed = `-- name: GetAndMarkFeed :one
+UPDATE feeds 
+SET (updated_at, last_fetched_at) = (NOW(), NOW())
+WHERE id = ( SELECT id FROM feeds
+    ORDER BY last_fetched_at ASC  NULLS FIRST
+    LIMIT 1)
+RETURNING id, created_at, updated_at, name, url, user_id, last_fetched_at
+`
+
+func (q *Queries) GetAndMarkFeed(ctx context.Context) (Feed, error) {
+	row := q.db.QueryRowContext(ctx, getAndMarkFeed)
+	var i Feed
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Name,
+		&i.Url,
+		&i.UserID,
+		&i.LastFetchedAt,
+	)
+	return i, err
+}
+
 const getFeed = `-- name: GetFeed :one
-SELECT id, created_at, updated_at, name, url, user_id FROM feeds
+SELECT id, created_at, updated_at, name, url, user_id, last_fetched_at FROM feeds
 WHERE url = $1
 `
 
@@ -69,6 +94,7 @@ func (q *Queries) GetFeed(ctx context.Context, url string) (Feed, error) {
 		&i.Name,
 		&i.Url,
 		&i.UserID,
+		&i.LastFetchedAt,
 	)
 	return i, err
 }

@@ -25,3 +25,11 @@ JOIN users ON users.id = feeds.user_id;
 
 -- name: DeleteFeeds :exec
 DELETE FROM feeds;
+
+-- name: GetAndMarkFeed :one
+UPDATE feeds 
+SET (updated_at, last_fetched_at) = (NOW(), NOW())
+WHERE id = ( SELECT id FROM feeds
+    ORDER BY last_fetched_at ASC  NULLS FIRST
+    LIMIT 1)
+RETURNING *;

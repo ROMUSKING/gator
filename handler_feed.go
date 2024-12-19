@@ -3,17 +3,25 @@ package main
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/romusking/gator/internal/database"
 )
 
 func handlerAgg(s *state, cmd command) error {
-	rss, err := fetchFeed(context.Background(), "https://www.wagslane.dev/index.xml")
-	if err != nil {
-		return err
+	if len(cmd.Args) != 1 {
+		fmt.Println("usage: agg <time_between_reqs>, minimum 1m")
 	}
-	fmt.Println(rss)
-	return nil
+	time_between_reqs, err := time.ParseDuration(cmd.Args[0])
+	if err != nil {
+		return fmt.Errorf("wrong time format: %v", err)
+	}
+	time_between_reqs = max(time.Minute, time_between_reqs)
+	fmt.Println("Collecting feeds every", time_between_reqs)
+	ticker := time.NewTicker(time_between_reqs)
+	for ; ; <-ticker.C {
+		scrapeFeeds(s)
+	}
 }
 
 func handlerAddFeed(s *state, cmd command, user database.User) error {
@@ -92,7 +100,7 @@ func handlerUnFollow(s *state, cmd command, user database.User) error {
 	return nil
 }
 
-func handlerFollowing(s *state, cmd command,  user database.User) error {
+func handlerFollowing(s *state, cmd command, user database.User) error {
 
 	feeds, err := s.db.GetFeedFollowsForUser(context.Background(), user.ID)
 	if err != nil {
@@ -102,5 +110,21 @@ func handlerFollowing(s *state, cmd command,  user database.User) error {
 		fmt.Println(feed.FeedName)
 	}
 
+	return nil
+}
+
+func scrapeFeeds(s *state) error {
+
+	feed, err := s.db.GetAndMarkFeed(context.Background())
+	if err != nil {
+		return err
+	}
+	items, err := fetchFeed(context.Background(), feed.Url)
+	if err != nil {
+		return err
+	}
+	for _, item := range items.Channel.Item {
+		fmt.Println(item.Title, item.Link)
+	}
 	return nil
 }
